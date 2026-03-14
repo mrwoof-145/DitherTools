@@ -1,4 +1,3 @@
-// dither.cpp
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <cstdint>
@@ -19,7 +18,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-// Quantize helper (0..8 bits)
 inline uint8_t quantize(uint8_t value, int bits) {
     if (bits >= 8) return value;
     if (bits <= 0) return 0;
@@ -29,7 +27,6 @@ inline uint8_t quantize(uint8_t value, int bits) {
     return static_cast<uint8_t>(out);
 }
 
-// 4x4 Bayer matrix
 static const int bayer4[4][4] = {
     { 0,  8,  2, 10},
     {12,  4, 14,  6},
@@ -37,7 +34,6 @@ static const int bayer4[4][4] = {
     {15,  7, 13,  5}
 };
 
-// Parallel Bayer ordered dither on an image buffer (w x h, channels)
 void dither_bayer_parallel_buf(std::vector<uint8_t>& img, int width, int height, int channels, int bits) {
     if (bits >= 8) return;
     const int levels = 1 << bits;
@@ -64,7 +60,6 @@ void dither_bayer_parallel_buf(std::vector<uint8_t>& img, int width, int height,
     }
 }
 
-// Floyd–Steinberg error diffusion on buffer (sequential)
 void dither_floyd_steinberg_buf(std::vector<uint8_t>& img, int width, int height, int channels, int bits) {
     if (bits >= 8) return;
 
@@ -91,29 +86,20 @@ void dither_floyd_steinberg_buf(std::vector<uint8_t>& img, int width, int height
     }
 }
 
-// Pixelation + dither pipeline:
-// - Given original img (w x h x channels) and res (float), compute block size B = max(1, round(1.0/res))
-// - Downsample into small image by averaging each BxB block
-// - Apply chosen dither on small image
-// - Upscale by nearest neighbor (replicate) to original size
-bool dither_with_resolution(std::vector<uint8_t>& img, int width, int height, int channels, int bits,
-    const std::string& mode, double res) {
+bool dither_with_resolution(std::vector<uint8_t>& img, int width, int height, int channels, int bits, const std::string& mode, double res) {
     if (res <= 0.0) return false;
     if (res >= 1.0) {
-        // no pixelation, just run dither on original buffer
         if (mode == "floyd") dither_floyd_steinberg_buf(img, width, height, channels, bits);
         else dither_bayer_parallel_buf(img, width, height, channels, bits);
         return true;
     }
 
-    // compute block size: smaller res -> larger blocks
     int B = static_cast<int>(std::round(1.0 / res));
     if (B < 1) B = 1;
 
     int w2 = (width + B - 1) / B;
     int h2 = (height + B - 1) / B;
 
-    // small image buffer (w2 * h2 * channels), store averaged colors
     std::vector<uint8_t> small((size_t)w2 * h2 * channels, 0);
 
     for (int by = 0; by < h2; ++by) {
@@ -139,7 +125,6 @@ bool dither_with_resolution(std::vector<uint8_t>& img, int width, int height, in
         }
     }
 
-    // apply dither on small image
     if (mode == "floyd") {
         dither_floyd_steinberg_buf(small, w2, h2, channels, bits);
     }
@@ -147,7 +132,6 @@ bool dither_with_resolution(std::vector<uint8_t>& img, int width, int height, in
         dither_bayer_parallel_buf(small, w2, h2, channels, bits);
     }
 
-    // upscale small back to original by replication
     std::vector<uint8_t> out((size_t)width * height * channels);
     for (int by = 0; by < h2; ++by) {
         for (int bx = 0; bx < w2; ++bx) {
@@ -171,7 +155,6 @@ bool dither_with_resolution(std::vector<uint8_t>& img, int width, int height, in
     return true;
 }
 
-// Parse --mode=... and --res=... arguments (returns empty if not present)
 static std::string parse_flag_arg(int argc, char** argv, const char* prefix) {
     size_t plen = std::strlen(prefix);
     for (int i = 1; i < argc; ++i) {
@@ -190,7 +173,6 @@ static void print_usage_and_exit(const char* prog) {
 int main(int argc, char** argv) {
     if (argc < 2) print_usage_and_exit(argv[0]);
 
-    // parse flags
     std::string mode = parse_flag_arg(argc, argv, "--mode=");
     std::string resstr = parse_flag_arg(argc, argv, "--res=");
 
@@ -219,7 +201,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // collect positional args excluding flags
     std::vector<std::string> pos;
     for (int i = 1; i < argc; ++i) {
         if (std::strncmp(argv[i], "--mode=", 7) == 0) continue;
@@ -239,7 +220,6 @@ int main(int argc, char** argv) {
     if (bits < 0) bits = 0;
     if (bits > 8) bits = 8;
 
-    // threads argument ONLY. If provided and >0, set OpenMP threads.
     if (threads > 0) {
 #ifdef _OPENMP
         omp_set_num_threads(threads);

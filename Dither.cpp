@@ -12,14 +12,12 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-// Quantize a single channel to N bits
 inline uint8_t quantize(uint8_t value, int bits) {
     int levels = 1 << bits;
     int step = 256 / levels;
     return static_cast<uint8_t>(std::round(value / step) * step);
 }
 
-// Floyd–Steinberg dithering
 void dither(std::vector<uint8_t>& img, int width, int height, int channels, int bits) {
     auto idx = [&](int x, int y, int c) { return (y * width + x) * channels + c; };
 
